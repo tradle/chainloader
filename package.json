@@ -1,0 +1,40 @@
+{
+  "name": "chainloader",
+  "version": "0.0.1",
+  "description": "tradle transaction data defs",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tradle/chainloader.git"
+  },
+  "keywords": [
+    "bitcoin",
+    "tradle",
+    "blockchain"
+  ],
+  "author": "Mark Vayngrib <mark.vayngrib@lablz.com> (http://github.com/mvayngrib)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tradle/chainloader/issues"
+  },
+  "homepage": "https://github.com/tradle/chainloader#readme",
+  "dependencies": {
+    "array-find": "^0.1.1",
+    "array-pluck": "^1.0.0",
+    "buffer-equal": "0.0.1",
+    "debug": "^2.2.0",
+    "extend": "^2.0.1",
+    "q": "^1.4.1",
+    "tradle-permission": "git://github.com/mvayngrib/permission.git",
+    "tradle-tx-data": "git://github.com/mvayngrib/tx-data.git",
+    "tradle-utils": "git://github.com/tradle/tradle-utils.git",
+    "typeforce": "^1.0.0"
+  },
+  "devDependencies": {
+    "cb-blockr": "^3.1.1",
+    "tradle-test-helpers": "git://github.com/tradle/test-helpers.git"
+  }
+}
