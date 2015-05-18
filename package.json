@@ -4,7 +4,7 @@
   "description": "tradle transaction data defs",
   "main": "index.js",
   "scripts": {
-    "test": "node test/*.js"
+    "test": "standard && node test/*.js"
   },
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "cb-blockr": "^3.1.1",
+    "standard": "^3.9.0",
     "tradle-test-helpers": "git://github.com/tradle/test-helpers.git"
   }
 }

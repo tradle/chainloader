@@ -1,4 +1,3 @@
-
 var Q = require('q')
 var Blockchain = require('cb-blockr')
 var test = require('tape')
@@ -8,7 +7,7 @@ var Loader = require('../')
 var FakeKeeper = require('tradle-test-helpers').FakeKeeper
 var app = require('./fixtures/app')
 
-test('load app models from list of model-creation tx ids', function(t) {
+test('load app models from list of model-creation tx ids', function (t) {
   t.plan(1)
 
   var network = 'testnet'
@@ -17,11 +16,11 @@ test('load app models from list of model-creation tx ids', function(t) {
   var txIds = app.models.txIds
   var loaded = []
   Q.all([
-      Q.ninvoke(api.transactions, 'get', txIds),
-      FakeKeeper.forData(models)
-    ])
-    .spread(function(txs, keeper) {
-      txs = txs.map(function(tx) {
+    Q.ninvoke(api.transactions, 'get', txIds),
+    FakeKeeper.forData(models)
+  ])
+    .spread(function (txs, keeper) {
+      txs = txs.map(function (tx) {
         return bitcoin.Transaction.fromHex(tx.txHex)
       })
 
@@ -31,15 +30,15 @@ test('load app models from list of model-creation tx ids', function(t) {
         keeper: keeper
       })
 
-      ;['file:public', 'file:shared'].forEach(function(event) {
-        loader.on(event, function(file) {
+      ;['file:public', 'file:shared'].forEach(function (event) {
+        loader.on(event, function (file) {
           loaded.push(file)
         })
       })
 
       return loader.load(txs)
     })
-    .then(function() {
+    .then(function () {
       var files = pluck(loaded, 'file')
       t.deepEqual(files, models)
     })
