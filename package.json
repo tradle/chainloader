@@ -1,7 +1,7 @@
 {
   "name": "chainloader",
   "version": "0.0.1",
-  "description": "tradle transaction data defs",
+  "description": "parse blockchain transactions for embedded data keys, fetch the data bodies from a keeper",
   "main": "index.js",
   "scripts": {
     "test": "standard && node test/*.js"
