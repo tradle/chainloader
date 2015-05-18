@@ -52,17 +52,15 @@ Loader.prototype.load = function (txs) {
   txs = [].concat(txs)
 
   var parsed = this._parseTxs(txs)
-  if (!parsed) return Q.resolve()
+  if (!parsed.length) return Q.resolve()
 
-  var pub = parsed.pub
-  var enc = parsed.enc
+  var pub = parsed.filter(function (p) { return p.type === 'public' })
+  var enc = parsed.filter(function (p) { return p.type === 'permission' })
+  var keys = pub.concat(enc).map(function (p) {
+    return p.key.toString('hex')
+  })
+
   var shared
-  var keys = pluck(pub, 'key')
-    .concat(pluck(enc, 'key'))
-    .map(function (key) {
-      return key.toString('hex')
-    })
-
   var files = []
   return this.fetchFiles(keys)
     .then(function (files) {
@@ -74,30 +72,19 @@ Loader.prototype.load = function (txs) {
         }
       })
 
-      if (!enc.length) return
+      if (!enc) return
 
       shared = enc.filter(function (parsed, i) {
         var file = files[i + pub.length]
         if (!file) return
 
-        var fileKey = parsed.key
-        var sharedKey = self._getSharedKey(parsed)
         try {
-          fileKey = utils.decrypt(parsed.key, sharedKey)
-        } catch (err) {
-          debug('Failed to decrypt permission key: ' + fileKey)
-          return
-        }
-
-        try {
-          parsed.permission = Permission.recover(file, sharedKey)
+          parsed.permission = Permission.recover(file, parsed.sharedKey)
         } catch (err) {
           debug('Failed to recover permission file contents from raw data', err)
           return
         }
 
-        parsed.key = fileKey
-        parsed.sharedKey = sharedKey
         self.emit('file:permission', parsed)
         return parsed
       })
@@ -267,39 +254,43 @@ Loader.prototype._getSharedKey = function (parsed) {
 }
 
 Loader.prototype._parseTxs = function (txs) {
-  var pub = []
-  var enc = []
-
+  var self = this
+  var results = []
   txs.forEach(function (tx) {
-    var parsed = getTxInfo(tx, this.networkName, this.prefix)
+    var parsed = getTxInfo(tx, self.networkName, self.prefix)
     if (!parsed) return
-
-    var group = parsed.type === 'public' ? pub : enc
-    group.push(parsed)
-
-    if (!this.addressBook) return
 
     var from
     var to
-    var addrs = parsed.tx.addresses
-    find(addrs.from, function (addr) {
-      from = this.addressBook.byFingerprint(addr)
-      return from
-    }, this)
+    if (self.addressBook) {
+      var addrs = parsed.tx.addresses
+      find(addrs.from, function (addr) {
+        from = self.addressBook.byFingerprint(addr)
+      })
 
-    find(addrs.to, function (addr) {
-      to = this.addressBook.byFingerprint(addr)
-      return to
-    }, this)
+      find(addrs.to, function (addr) {
+        to = self.addressBook.byFingerprint(addr)
+      })
 
-    parsed.from = from
-    parsed.to = to
-  }, this)
-
-  if (pub.length || enc.length) {
-    return {
-      pub: pub,
-      enc: enc
+      parsed.from = from
+      parsed.to = to
+      if (parsed.type === 'permission' && from && to) {
+        parsed.sharedKey = self._getSharedKey(parsed)
+        try {
+          parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
+        } catch (err) {
+          debug('Failed to decrypt permission key: ' + parsed.key)
+          return
+        }
+      }
     }
-  }
+
+    // encrypted permissions are impossible to decrypt
+    // if we don't know who they're from
+    if (parsed.type === 'public' || (parsed.from && parsed.to)) {
+      results.push(parsed)
+    }
+  })
+
+  return results
 }
