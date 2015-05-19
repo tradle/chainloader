@@ -290,6 +290,7 @@ Loader.prototype._parseTxs = function (txs) {
     // encrypted permissions are impossible to decrypt
     // if we don't know who they're from
     if (parsed.type === 'public' || (parsed.from && parsed.to)) {
+      parsed.key = parsed.key.toString('hex')
       results.push(parsed)
     }
   })
