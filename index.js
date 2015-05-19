@@ -266,10 +266,12 @@ Loader.prototype._parseTxs = function (txs) {
       var addrs = parsed.tx.addresses
       find(addrs.from, function (addr) {
         from = self.addressBook.byFingerprint(addr)
+        return from
       })
 
       find(addrs.to, function (addr) {
         to = self.addressBook.byFingerprint(addr)
+        return to
       })
 
       parsed.from = from
