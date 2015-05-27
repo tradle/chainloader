@@ -129,7 +129,7 @@ Loader.prototype.load = function (txs) {
  * @param  {TransactionData} txData
  * @return {Object}   permission file "key" and ECDH "sharedKey" to decrypt it
  */
-Loader.prototype.deduceECDHKeys = function(tx, txData) {
+Loader.prototype.deduceECDHKeys = function (tx, txData) {
   if (!(this.wallet && txData)) return
 
   var wallet = this.wallet
@@ -139,24 +139,24 @@ Loader.prototype.deduceECDHKeys = function(tx, txData) {
   var toMe = this.getSentToMe(tx)
   var fromMe = this.getSentFromMe(tx)
   if (!toMe.length && !fromMe.length) {
-    debug('Cannot parse permission data from transaction as it\'s neither to me nor from me')
+    debug("Cannot parse permission data from transaction as it's neither to me nor from me")
     return
   }
 
   if (fromMe.length) {
     // can't figure out their public key
     if (toMe.length !== tx.outs.length - 1) {
-      debug('Unable to process transaction data, don\'t know the public key of the receipient')
+      debug("Unable to process transaction data, don't know the public key of the receipient")
       return
     }
 
-    tx.ins.some(function(input) {
+    tx.ins.some(function (input) {
       var addr = utils.getAddressFromInput(input, this.networkName)
       myPrivKey = wallet.getPrivateKeyForAddress(addr)
       return myPrivKey
     }, this)
 
-    toMe.some(function(out) {
+    toMe.some(function (out) {
       var addr = utils.getAddressFromOutput(out, this.networkName)
       if (addr && !wallet.isChangeAddress(addr)) {
         theirPubKey = wallet.getPublicKeyForAddress(addr)
@@ -178,10 +178,10 @@ Loader.prototype.deduceECDHKeys = function(tx, txData) {
 /**
  *  @return {Array} outputs in tx that the underlying wallet can spend
  */
-Loader.prototype.getSentToMe = function(tx) {
+Loader.prototype.getSentToMe = function (tx) {
   if (!this.wallet) return []
 
-  return tx.outs.filter(function(out) {
+  return tx.outs.filter(function (out) {
     var address = utils.getAddressFromOutput(out, this.networkName)
     return this.wallet.getPrivateKeyForAddress(address) && out
   }, this)
@@ -190,10 +190,10 @@ Loader.prototype.getSentToMe = function(tx) {
 /**
  *  @return {Array} inputs in tx that are signed by the underlying wallet
  */
-Loader.prototype.getSentFromMe = function(tx) {
+Loader.prototype.getSentFromMe = function (tx) {
   if (!this.wallet) return []
 
-  return tx.ins.filter(function(input) {
+  return tx.ins.filter(function (input) {
     var address = utils.getAddressFromInput(input, this.networkName)
     return this.wallet.getPrivateKeyForAddress(address) && input
   }, this)
