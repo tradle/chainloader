@@ -277,13 +277,15 @@ Loader.prototype._parseTxs = function (txs) {
       parsed.to = to
     }
 
-    parsed.sharedKey = self._getSharedKey(parsed)
-    if (parsed.sharedKey) {
-      try {
-        parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
-      } catch (err) {
-        debug('Failed to decrypt permission key: ' + parsed.key)
-        return
+    if (parsed.type !== 'public') {
+      parsed.sharedKey = self._getSharedKey(parsed)
+      if (parsed.sharedKey) {
+        try {
+          parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
+        } catch (err) {
+          debug('Failed to decrypt permission key: ' + parsed.key)
+          return
+        }
       }
     }
 
