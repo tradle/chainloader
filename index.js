@@ -13,6 +13,21 @@ var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
 
 module.exports = Loader
 
+/**
+ * Load data from the chain (blockchain + keeper)
+ * @param {Function} lookup (optional) - function to look up identities by fingerprints
+ *   @example
+ *     function lookup (cb) {
+ *       cb({
+ *         key: key with pub/priv props or functions
+ *       })
+ *     }
+ *
+ * @param {BitKeeper|BitKeeper client} keeper
+ * @param {String} networkName
+ * @param {String} prefix - prefix for OP_RETURN data
+ * @param {Object} options
+ */
 function Loader (options) {
   var self = this
 
@@ -50,76 +65,80 @@ Loader.prototype.load = function (txs) {
   var self = this
   txs = [].concat(txs)
 
-  var parsed = this._parseTxs(txs)
-  if (!parsed.length) return Q.resolve()
+  return this._parseTxs(txs)
+    .then(onParsed)
 
-  var pub = parsed.filter(function (p) { return p.type === 'public' })
-  var enc = parsed.filter(function (p) { return p.type === 'permission' })
-  var keys = pluck(pub.concat(enc), 'key')
-  var shared
-  var files = []
-  return this.fetchFiles(keys)
-    .then(function (fetched) {
-      if (!fetched.length) return
+  function onParsed (parsed) {
+    if (!parsed.length) return Q.resolve()
 
-      pub.forEach(function (parsed, i) {
-        if (fetched[i]) {
-          parsed.file = fetched[i]
-          self.emit('file:public', parsed)
-          files.push(parsed)
-        }
-      })
+    var pub = parsed.filter(function (p) { return p.type === 'public' })
+    var enc = parsed.filter(function (p) { return p.type === 'permission' })
+    var keys = pluck(pub.concat(enc), 'key')
+    var shared
+    var files = []
+    return self.fetchFiles(keys)
+      .then(function (fetched) {
+        if (!fetched.length) return
 
-      if (!enc.length) return
+        pub.forEach(function (parsed, i) {
+          if (fetched[i]) {
+            parsed.file = fetched[i]
+            self.emit('file:public', parsed)
+            files.push(parsed)
+          }
+        })
 
-      shared = enc.filter(function (parsed, i) {
-        var file = fetched[i + pub.length]
-        if (!file) return
+        if (!enc.length) return
 
-        try {
-          parsed.permission = Permission.recover(file, parsed.sharedKey)
-        } catch (err) {
-          debug('Failed to recover permission file contents from raw data', err)
-          return
-        }
+        shared = enc.filter(function (parsed, i) {
+          var file = fetched[i + pub.length]
+          if (!file) return
 
-        self.emit('file:permission', parsed)
-        return parsed
-      })
-
-      if (!shared.length) return
-
-      return self.fetchFiles(pluck(shared, 'key'))
-    })
-    .then(function (sharedFiles) {
-      if (sharedFiles) {
-        sharedFiles.forEach(function (file, idx) {
-          var parsed = extend({}, shared[idx])
-          var pKey = parsed.key
-          parsed.key = parsed.permission.fileKeyString()
-          parsed.permissionKey = pKey
-          parsed.type = 'sharedfile'
-
-          var decryptionKey = parsed.permission.decryptionKeyBuf()
-          if (decryptionKey) {
-            try {
-              file = utils.decrypt(file, decryptionKey)
-            } catch (err) {
-              debug('Failed to decrypt ciphertext: ' + file)
-              return
-            }
+          try {
+            parsed.permission = Permission.recover(file, parsed.sharedKey)
+          } catch (err) {
+            debug('Failed to recover permission file contents from raw data', err)
+            return
           }
 
-          parsed.file = file
-          self.emit('file:shared', parsed)
-          files.push(parsed)
+          self.emit('file:permission', parsed)
+          return parsed
         })
-      }
 
-      return files.sort(function (a, b) {
-        return txs.indexOf(a.tx.body) - txs.indexOf(b.tx.body)
+        if (!shared.length) return
+
+        return self.fetchFiles(pluck(shared, 'key'))
       })
-    })
+      .then(function (sharedFiles) {
+        if (sharedFiles) {
+          sharedFiles.forEach(function (file, idx) {
+            var parsed = extend({}, shared[idx])
+            var pKey = parsed.key
+            parsed.key = parsed.permission.fileKeyString()
+            parsed.permissionKey = pKey
+            parsed.type = 'sharedfile'
+
+            var decryptionKey = parsed.permission.decryptionKeyBuf()
+            if (decryptionKey) {
+              try {
+                file = utils.decrypt(file, decryptionKey)
+              } catch (err) {
+                debug('Failed to decrypt ciphertext: ' + file)
+                return
+              }
+            }
+
+            parsed.file = file
+            self.emit('file:shared', parsed)
+            files.push(parsed)
+          })
+        }
+
+        return files.sort(function (a, b) {
+          return txs.indexOf(a.tx.body) - txs.indexOf(b.tx.body)
+        })
+      })
+  }
 }
 
 // /**
@@ -223,84 +242,67 @@ Loader.prototype.fetchFiles = function (keys) {
 // }
 
 Loader.prototype._getSharedKey = function (parsed) {
-  var me = this.identity
-  var from = parsed.from
-  var to = parsed.to
-  var pub
-  var priv
-  if (me && from && to) {
-    if (me === from.identity || me === to.identity) {
-      priv = me === from.identity ? from.key.priv() : to.key.priv()
-      pub = me === from.identity ? to.key.pub() : from.key.pub()
-      return priv && pub && utils.sharedEncryptionKey(priv, pub)
-    }
+  if (!(parsed.from && parsed.to)) return
+
+  var to = find(parsed.to, function (result) {
+    return !result.identity.equals(parsed.from.identity)
+  })
+
+  if (!to.length) return
+  if (to.length !== 1) throw new Error('too many recipients')
+
+  var from = parsed.key
+  to = to[0].key
+
+  var priv = getResult(from, 'priv')
+  var pub = getResult(to, 'pub')
+  if (!priv) {
+    priv = getResult(to, 'priv')
+    pub = getResult(from, 'pub')
   }
 
-  // if (!(priv && pub)) {
-  //   // priv = ...
-  //   // pub = ...
-  //   // TODO: fall back to decrypting based on bitcoin keys associated with this tx
-  //   var keys = this.deduceECDHKeys(parsed.tx.body, parsed.key)
-  //   if (!keys) return
-
-  //   pub = keys.pub
-  //   priv = keys.priv
-  // }
-
+  return priv && pub && utils.sharedEncryptionKey(priv, pub)
 }
 
 Loader.prototype._parseTxs = function (txs) {
+  return Q.all(txs.map(this._parseTx, this))
+}
+
+Loader.prototype._parseTx = function (tx, cb) {
   var self = this
-  var results = []
-  txs.forEach(function (tx) {
-    var parsed = getTxInfo(tx, self.networkName, self.prefix)
-    if (!parsed) return
+  var parsed = getTxInfo(tx, self.networkName, self.prefix)
+  if (!parsed) return Q.resolve()
 
-    var from
-    var to
-    var addrs = parsed.tx.addresses
-    if (self.identity) {
-      find(addrs.from, function (addr) {
-        var key = self.identity.keys({ fingerprint: addr })[0]
-        from = key && {
-          key: key,
-          identity: self.identity
-        }
+  var addrs = parsed.tx.addresses
+  if (!this.lookup) return onlookedup()
 
-        return from
-      })
+  var allAddrs = addrs.from.concat(addrs.to)
+  var lookups = allAddrs.map(function (f) {
+    return Q.ninvoke(self, 'lookup', f)
+  })
 
-      if (from.identity !== self.identity) {
-        find(addrs.to, function (addr) {
-          var key = self.identity.keys({ fingerprint: addr })[0]
-          to = key && {
-            key: key,
-            identity: self.identity
+  return Q.allSettled(lookups)
+    .then(function (results) {
+      results.slice(0, addrs.from.length)
+        .some(function (result) {
+          if (result.value) {
+            parsed.from = result.value
+            return true
           }
-
-          return to
         })
-      }
-    }
 
-    if (self.addressBook) {
-      if (!from) {
-        find(addrs.from, function (addr) {
-          from = self.addressBook.byFingerprint(addr)
-          return from
+      var to = results.slice(addrs.from.length)
+        .filter(function (result) {
+          return !!result.value
         })
-      }
 
-      if (!to) {
-        find(addrs.to, function (addr) {
-          to = self.addressBook.byFingerprint(addr)
-          return to
-        })
-      }
-    }
+      if (to.length) parsed.to = to
 
-    parsed.from = from
-    parsed.to = to
+      return onlookedup()
+    })
+    .then(onlookedup)
+
+  function onlookedup () {
     if (parsed.type !== 'public') {
       parsed.sharedKey = self._getSharedKey(parsed)
       if (parsed.sharedKey) {
@@ -317,9 +319,56 @@ Loader.prototype._parseTxs = function (txs) {
     // if we don't know the shared key
     if (parsed.type === 'public' || parsed.sharedKey) {
       parsed.key = parsed.key.toString('hex')
-      results.push(parsed)
+      return parsed
     }
-  })
+  }
 
-  return results
+  // if (self.identity) {
+  //   find(addrs.from, function (addr) {
+  //     var key = self.identity.keys({ fingerprint: addr })[0]
+  //     from = key && {
+  //       key: key,
+  //       identity: self.identity
+  //     }
+
+  //     return from
+  //   })
+
+  //   if (from.identity !== self.identity) {
+  //     find(addrs.to, function (addr) {
+  //       var key = self.identity.keys({ fingerprint: addr })[0]
+  //       to = key && {
+  //         key: key,
+  //         identity: self.identity
+  //       }
+
+  //       return to
+  //     })
+  //   }
+  // }
+
+  // if (self.addressBook) {
+  //   if (!from) {
+  //     find(addrs.from, function (addr) {
+  //       from = self.addressBook.byFingerprint(addr)
+  //       return from
+  //     })
+  //   }
+
+  //   if (!to) {
+  //     find(addrs.to, function (addr) {
+  //       to = self.addressBook.byFingerprint(addr)
+  //       return to
+  //     })
+  //   }
+  // }
+
+  // parsed.from = from
+  // parsed.to = to
+}
+
+function getResult (obj, p) {
+  var val = obj[p]
+  if (typeof val === 'function') return obj[p]()
+  else return val
 }
