@@ -2,7 +2,6 @@ var Q = require('q')
 var typeForce = require('typeforce')
 var utils = require('tradle-utils')
 var debug = require('debug')('chainloader')
-var find = require('array-find')
 var EventEmitter = require('events').EventEmitter
 var inherits = require('util').inherits
 var pluck = require('array-pluck')
@@ -96,13 +95,14 @@ Loader.prototype.load = function (txs) {
 
           try {
             parsed.permission = Permission.recover(file, parsed.sharedKey)
+            parsed.key = parsed.permission.fileKeyString()
           } catch (err) {
             debug('Failed to recover permission file contents from raw data', err)
             return
           }
 
           self.emit('file:permission', parsed)
-          return parsed
+          return true
         })
 
         if (!shared.length) return
@@ -244,16 +244,8 @@ Loader.prototype.fetchFiles = function (keys) {
 Loader.prototype._getSharedKey = function (parsed) {
   if (!(parsed.from && parsed.to)) return
 
-  var to = find(parsed.to, function (result) {
-    return !result.identity.equals(parsed.from.identity)
-  })
-
-  if (!to.length) return
-  if (to.length !== 1) throw new Error('too many recipients')
-
-  var from = parsed.key
-  to = to[0].key
-
+  var from = parsed.from.key
+  var to = parsed.to.key
   var priv = getResult(from, 'priv')
   var pub = getResult(to, 'pub')
   if (!priv) {
@@ -283,24 +275,28 @@ Loader.prototype._parseTx = function (tx, cb) {
 
   return Q.allSettled(lookups)
     .then(function (results) {
+      results = results.map(function (r) {
+        return r.value
+      })
+
       results.slice(0, addrs.from.length)
         .some(function (result) {
-          if (result.value) {
-            parsed.from = result.value
+          if (result) {
+            parsed.from = result
             return true
           }
         })
 
-      var to = results.slice(addrs.from.length)
-        .filter(function (result) {
-          return !!result.value
+      results.slice(addrs.from.length)
+        .some(function (result) {
+          if (result && parsed.from && !parsed.from.key.equals(result.key)) {
+            parsed.to = result
+            return true
+          }
         })
-
-      if (to.length) parsed.to = to
 
       return onlookedup()
     })
-    .then(onlookedup)
 
   function onlookedup () {
     if (parsed.type !== 'public') {
