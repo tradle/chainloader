@@ -113,9 +113,7 @@ Loader.prototype.load = function (txs) {
         if (sharedFiles) {
           sharedFiles.forEach(function (file, idx) {
             var parsed = extend({}, shared[idx])
-            var pKey = parsed.key
             parsed.key = parsed.permission.fileKeyString()
-            parsed.permissionKey = pKey
             parsed.type = 'sharedfile'
 
             var decryptionKey = parsed.permission.decryptionKeyBuf()
@@ -258,6 +256,11 @@ Loader.prototype._getSharedKey = function (parsed) {
 
 Loader.prototype._parseTxs = function (txs) {
   return Q.all(txs.map(this._parseTx, this))
+    .then(function (parsed) {
+      return parsed.filter(function (p) {
+        return !!p
+      })
+    })
 }
 
 Loader.prototype._parseTx = function (tx, cb) {
@@ -304,6 +307,7 @@ Loader.prototype._parseTx = function (tx, cb) {
       if (parsed.sharedKey) {
         try {
           parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
+          parsed.permissionKey = parsed.key
         } catch (err) {
           debug('Failed to decrypt permission key: ' + parsed.key)
           return
@@ -311,12 +315,12 @@ Loader.prototype._parseTx = function (tx, cb) {
       }
     }
 
-    // encrypted permissions are impossible to decrypt
-    // if we don't know the shared key
-    if (parsed.type === 'public' || parsed.sharedKey) {
-      parsed.key = parsed.key.toString('hex')
-      return parsed
+    parsed.key = parsed.key.toString('hex')
+    if (parsed.permissionKey) {
+      parsed.permissionKey = parsed.permissionKey.toString('hex')
     }
+
+    return parsed
   }
 
   // if (self.identity) {
