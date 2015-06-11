@@ -15,13 +15,6 @@ module.exports = Loader
 /**
  * Load data from the chain (blockchain + keeper)
  * @param {Function} lookup (optional) - function to look up identities by fingerprints
- *   @example
- *     function lookup (cb) {
- *       cb({
- *         key: key with pub/priv props or functions
- *       })
- *     }
- *
  * @param {BitKeeper|BitKeeper client} keeper
  * @param {String} networkName
  * @param {String} prefix - prefix for OP_RETURN data
@@ -45,6 +38,7 @@ function Loader (options) {
   utils.bindPrototypeFunctions(this)
 
   extend(this, options)
+  if (options.lookup) this.lookupWith(options.lookup)
 
   FILE_EVENTS.forEach(function (event) {
     self.on(event, function (data) {
@@ -137,6 +131,20 @@ Loader.prototype.load = function (txs) {
         })
       })
   }
+}
+
+/*
+ * @param {Function} fn - function to look up identities by fingerprints
+ *   @example
+ *     function lookup (cb) {
+ *       cb(err, {
+ *         key: key with pub/priv props or functions
+ *       })
+ *     }
+ */
+Loader.prototype.lookupWith = function (fn) {
+  this.lookup = fn
+  return this
 }
 
 // /**
