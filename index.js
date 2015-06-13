@@ -1,9 +1,9 @@
+var Transform = require('stream').Transform
 var Q = require('q')
 var typeForce = require('typeforce')
+var inherits = require('util').inherits
 var utils = require('tradle-utils')
 var debug = require('debug')('chainloader')
-var EventEmitter = require('events').EventEmitter
-var inherits = require('util').inherits
 var pluck = require('array-pluck')
 var extend = require('extend')
 var getTxInfo = require('tradle-tx-data').getTxInfo
@@ -11,6 +11,7 @@ var Permission = require('tradle-permission')
 var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
 
 module.exports = Loader
+inherits(Loader, Transform)
 
 /**
  * Load data from the chain (blockchain + keeper)
@@ -34,7 +35,11 @@ function Loader (options) {
     getMany: 'Function'
   }, options.keeper)
 
-  EventEmitter.call(this)
+  Transform.call(this, {
+    objectMode: true,
+    highWaterMark: 16
+  })
+
   utils.bindPrototypeFunctions(this)
 
   extend(this, options)
@@ -48,7 +53,15 @@ function Loader (options) {
   })
 }
 
-inherits(Loader, EventEmitter)
+Loader.prototype._transform = function (tx, encoding, done) {
+  var self = this
+  this.load(tx)
+    .catch(done)
+    .done(function (files) {
+      files.forEach(self.push, self)
+      done()
+    })
+}
 
 /**
  *  Optimized data loading with minimum calls to keeper
@@ -371,8 +384,8 @@ Loader.prototype._parseTx = function (tx, cb) {
   //   }
   // }
 
-  // parsed.from = from
-  // parsed.to = to
+// parsed.from = from
+// parsed.to = to
 }
 
 function getResult (obj, p) {
