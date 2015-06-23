@@ -58,7 +58,10 @@ Loader.prototype._transform = function (tx, encoding, done) {
   this.load(tx)
     .catch(done)
     .done(function (files) {
-      files.forEach(self.push, self)
+      if (files) {
+        files.forEach(self.push, self)
+      }
+
       done()
     })
 }
