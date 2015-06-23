@@ -16,9 +16,9 @@ test('load app models from list of model-creation tx ids', function (t) {
   var txIds = app.models.txIds
   var loaded = []
   Q.all([
-    Q.ninvoke(api.transactions, 'get', txIds),
-    FakeKeeper.forData(models)
-  ])
+      Q.ninvoke(api.transactions, 'get', txIds),
+      FakeKeeper.forData(models)
+    ])
     .spread(function (txs, keeper) {
       txs = txs.map(function (tx) {
         return bitcoin.Transaction.fromHex(tx.txHex)
@@ -39,7 +39,7 @@ test('load app models from list of model-creation tx ids', function (t) {
       return loader.load(txs)
     })
     .then(function () {
-      var files = pluck(loaded, 'file')
+      var files = pluck(loaded, 'data')
       t.deepEqual(files, models)
     })
     .done()

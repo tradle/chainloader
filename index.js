@@ -91,7 +91,7 @@ Loader.prototype.load = function (txs) {
 
         pub.forEach(function (parsed, i) {
           if (fetched[i]) {
-            parsed.file = fetched[i]
+            parsed.data = fetched[i]
             self.emit('file:public', parsed)
             files.push(parsed)
           }
@@ -136,7 +136,7 @@ Loader.prototype.load = function (txs) {
               }
             }
 
-            parsed.file = file
+            parsed.data = file
             self.emit('file:shared', parsed)
             files.push(parsed)
           })
