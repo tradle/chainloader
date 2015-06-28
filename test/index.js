@@ -2,9 +2,9 @@ var Q = require('q')
 var Blockchain = require('cb-blockr')
 var test = require('tape')
 var bitcoin = require('bitcoinjs-lib')
-var pluck = require('array-pluck')
 var Loader = require('../')
 var FakeKeeper = require('tradle-test-helpers').FakeKeeper
+var pluck = require('../pluck')
 var app = require('./fixtures/app')
 
 test('load app models from list of model-creation tx ids', function (t) {

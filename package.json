@@ -33,6 +33,7 @@
     "debug": "^2.2.0",
     "extend": "^2.0.1",
     "q": "^1.4.1",
+    "readable-stream": "^2.0.1",
     "tradle-permission": "git://github.com/mvayngrib/permission.git",
     "tradle-tx-data": "git://github.com/mvayngrib/tx-data.git",
     "tradle-utils": "git://github.com/tradle/tradle-utils.git",

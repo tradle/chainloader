@@ -1,13 +1,14 @@
-var Transform = require('stream').Transform
+
+var Transform = require('readable-stream').Transform
 var Q = require('q')
 var typeForce = require('typeforce')
-var inherits = require('util').inherits
 var utils = require('tradle-utils')
 var debug = require('debug')('chainloader')
-var pluck = require('array-pluck')
+var inherits = require('util').inherits
 var extend = require('extend')
 var getTxInfo = require('tradle-tx-data').getTxInfo
 var Permission = require('tradle-permission')
+var pluck = require('./pluck')
 var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
 
 module.exports = Loader
@@ -82,7 +83,7 @@ Loader.prototype.load = function (txs) {
 
     var pub = parsed.filter(function (p) { return p.type === 'public' })
     var enc = parsed.filter(function (p) { return p.type === 'permission' })
-    var keys = pluck(pub.concat(enc), 'key')
+    var keys = pluck(pub, 'key').concat(pluck(enc, 'permissionKey'))
     var shared
     var files = []
     return self.fetchFiles(keys)
@@ -387,8 +388,8 @@ Loader.prototype._parseTx = function (tx, cb) {
   //   }
   // }
 
-// parsed.from = from
-// parsed.to = to
+  // parsed.from = from
+  // parsed.to = to
 }
 
 function getResult (obj, p) {
