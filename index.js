@@ -1,4 +1,5 @@
 
+var assert = require('assert')
 var Transform = require('readable-stream').Transform
 var Q = require('q')
 var typeForce = require('typeforce')
@@ -151,7 +152,7 @@ Loader.prototype.load = function (txs) {
 }
 
 /*
- * @param {Function} fn - function to look up identities by fingerprints
+ * @param {Function} fn - function to look up identities by fingerprints (must return Promise)
  *   @example
  *     function lookup (cb) {
  *       cb(err, {
@@ -298,7 +299,9 @@ Loader.prototype._parseTx = function (tx, cb) {
 
   var allAddrs = addrs.from.concat(addrs.to)
   var lookups = allAddrs.map(function (f) {
-    return Q.ninvoke(self, 'lookup', f)
+    var promise = self.lookup(f, true) // private
+    assert(Q.isPromiseAlike(promise), '"lookup" function should return a promise')
+    return promise
   })
 
   return Q.allSettled(lookups)
