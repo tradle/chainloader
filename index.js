@@ -58,7 +58,10 @@ function Loader (options) {
 Loader.prototype._transform = function (tx, encoding, done) {
   var self = this
   this.load(tx)
-    .catch(done)
+    .catch(function (err) {
+      self.emit('error', err)
+      done()
+    })
     .done(function (files) {
       if (files) {
         files.forEach(self.push, self)
@@ -271,10 +274,10 @@ Loader.prototype._getSharedKey = function (parsed) {
   var from = parsed.from.key
   var to = parsed.to.key
   var priv = getResult(from, 'priv')
-  var pub = getResult(to, 'pub')
+  var pub = getResult(to, 'value')
   if (!priv) {
     priv = getResult(to, 'priv')
-    pub = getResult(from, 'pub')
+    pub = getResult(from, 'value')
   }
 
   return priv && pub && utils.sharedEncryptionKey(priv, pub)
@@ -299,6 +302,7 @@ Loader.prototype._parseTx = function (tx, cb) {
 
   var allAddrs = addrs.from.concat(addrs.to)
   var lookups = allAddrs.map(function (f) {
+    if (!f) return Q.reject()
     var promise = self.lookup(f, true) // private
     assert(Q.isPromiseAlike(promise), '"lookup" function should return a promise')
     return promise
@@ -320,7 +324,7 @@ Loader.prototype._parseTx = function (tx, cb) {
 
       results.slice(addrs.from.length)
         .some(function (result) {
-          if (result && parsed.from && !parsed.from.key.equals(result.key)) {
+          if (result && parsed.from && parsed.from.key.value !== result.key.value) {
             parsed.to = result
             return true
           }
@@ -332,14 +336,14 @@ Loader.prototype._parseTx = function (tx, cb) {
   function onlookedup () {
     if (parsed.type !== 'public') {
       parsed.sharedKey = self._getSharedKey(parsed)
-      if (parsed.sharedKey) {
-        try {
-          parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
-          parsed.permissionKey = parsed.key
-        } catch (err) {
-          debug('Failed to decrypt permission key: ' + parsed.key)
-          return
-        }
+      if (!parsed.sharedKey) return
+
+      try {
+        parsed.key = utils.decrypt(parsed.key, parsed.sharedKey)
+        parsed.permissionKey = parsed.key
+      } catch (err) {
+        debug('Failed to decrypt permission key: ' + parsed.key)
+        return
       }
     }
 
