@@ -36,7 +36,7 @@
     "readable-stream": "^2.0.1",
     "tradle-permission": "git://github.com/mvayngrib/permission.git",
     "tradle-tx-data": "git://github.com/mvayngrib/tx-data.git",
-    "tradle-utils": "git://github.com/tradle/tradle-utils.git",
+    "tradle-utils": "^0.1.3",
     "typeforce": "^1.0.0"
   },
   "devDependencies": {
