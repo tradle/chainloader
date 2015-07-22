@@ -4,8 +4,10 @@ var test = require('tape')
 var bitcoin = require('bitcoinjs-lib')
 var Loader = require('../')
 var FakeKeeper = require('tradle-test-helpers').FakeKeeper
+// var Wallet = require('simple-wallet')
 var pluck = require('../pluck')
 var app = require('./fixtures/app')
+var share = require('./fixtures/share')
 
 test('load app models from list of model-creation tx ids', function (t) {
   t.plan(1)
@@ -43,4 +45,64 @@ test('load app models from list of model-creation tx ids', function (t) {
       t.deepEqual(files, models)
     })
     .done()
+})
+
+test('test shared files', function (t) {
+  var netName = share.networkName
+  var net = bitcoin.networks[netName]
+  var keeper = FakeKeeper.forMap(share.keeper)
+  keeper.getOne = function (key) {
+    if (key in share.keeper) {
+      return Q.resolve(new Buffer(share.keeper[key], 'base64'))
+    } else {
+      return Q.reject('not found')
+    }
+  }
+
+  var txs = share.txs.map(function (tx) {
+    return bitcoin.Transaction.fromHex(tx)
+  })
+
+  var pubKeys = share.recipients.map(function (pk) {
+    return bitcoin.ECKey.fromWIF(pk).pub
+  })
+
+  var pub = bitcoin.ECKey.fromWIF(share.priv).pub
+  var myAddr = pub.getAddress(net).toString()
+  var addresses = pubKeys.map(function (p) {
+    return p.getAddress(net).toString()
+  })
+
+  var loader = new Loader({
+    prefix: share.prefix,
+    networkName: netName,
+    keeper: keeper,
+    lookup: function (address) {
+      if (address === myAddr) {
+        return Q.resolve({
+          key: {
+            priv: share.priv,
+            value: pub.toHex()
+          }
+        })
+      } else {
+        var idx = addresses.indexOf(address)
+        if (idx === -1) return Q.reject(new Error('not found'))
+
+        return Q.resolve({
+          key: {
+            value: pubKeys[idx].toHex()
+          }
+        })
+      }
+    }
+  })
+
+  loader.load(txs)
+    .then(function (files) {
+      t.equal(files[0].key, share.key)
+    })
+    .done(function () {
+      t.end()
+    })
 })
