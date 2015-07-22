@@ -3,7 +3,7 @@ var Blockchain = require('cb-blockr')
 var test = require('tape')
 var bitcoin = require('bitcoinjs-lib')
 var Loader = require('../')
-var FakeKeeper = require('tradle-test-helpers').FakeKeeper
+var fakeKeeper = require('tradle-test-helpers').fakeKeeper
 // var Wallet = require('simple-wallet')
 var pluck = require('../pluck')
 var app = require('./fixtures/app')
@@ -19,7 +19,7 @@ test('load app models from list of model-creation tx ids', function (t) {
   var loaded = []
   Q.all([
       Q.ninvoke(api.transactions, 'get', txIds),
-      FakeKeeper.forData(models)
+      fakeKeeper.forData(models)
     ])
     .spread(function (txs, keeper) {
       txs = txs.map(function (tx) {
@@ -50,7 +50,7 @@ test('load app models from list of model-creation tx ids', function (t) {
 test('test shared files', function (t) {
   var netName = share.networkName
   var net = bitcoin.networks[netName]
-  var keeper = FakeKeeper.forMap(share.keeper)
+  var keeper = fakeKeeper.forMap(share.keeper)
   keeper.getOne = function (key) {
     if (key in share.keeper) {
       return Q.resolve(new Buffer(share.keeper[key], 'base64'))
