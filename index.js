@@ -9,6 +9,7 @@ var inherits = require('util').inherits
 var extend = require('extend')
 var txd = require('tradle-tx-data')
 var TxInfo = txd.TxInfo
+var TxData = txd.TxData
 var Permission = require('tradle-permission')
 var pluck = require('./pluck')
 var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
@@ -101,7 +102,7 @@ Loader.prototype.load = function (txs) {
         if (!data) return
 
         var parsed = parsedTxs[i]
-        if (parsed.txType === 'public') {
+        if (parsed.txType === TxData.types.public) {
           parsed.data = data
           self.emit('file:public', parsed)
           return results.push(parsed)
@@ -109,6 +110,7 @@ Loader.prototype.load = function (txs) {
 
         if (!parsed.sharedKey) return
 
+        parsed.encryptedPermission = data
         try {
           parsed.permission = Permission.recover(data, parsed.sharedKey)
           parsed.key = parsed.permission.fileKeyString()
@@ -131,7 +133,7 @@ Loader.prototype.load = function (txs) {
 
           var parsed = extend({}, shared[idx])
           parsed.key = parsed.permission.fileKeyString()
-          parsed.encrypted = file
+          parsed.encryptedData = file
 
           var decryptionKey = parsed.permission.decryptionKeyBuf()
           if (decryptionKey) {
@@ -269,7 +271,7 @@ Loader.prototype._processTxInfo = function (parsed) {
         parsed.to = matches.to
       }
 
-      if (parsed.txType === 'public') {
+      if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
         if (!matches) return
