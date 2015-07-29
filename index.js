@@ -274,7 +274,7 @@ Loader.prototype._processTxInfo = function (parsed) {
       if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
-        if (!matches) return
+        if (!matches) return Q.reject('unknown tx participants')
 
         parsed.encryptedKey = parsed.txData
         parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
