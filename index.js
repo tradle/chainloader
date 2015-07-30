@@ -262,7 +262,9 @@ Loader.prototype.fetchFiles = function (keys) {
 
 Loader.prototype._processTxInfo = function (parsed) {
   var self = this
-  assert(TxInfo.validate(parsed), 'invalid parsed tx')
+  if (!TxInfo.validate(parsed)) {
+    return Q.reject('invalid parsed tx')
+  }
 
   return this._lookupParties(parsed.addressesFrom, parsed.addressesTo)
     .then(function (matches) {
