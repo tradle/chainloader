@@ -280,7 +280,7 @@ Loader.prototype._processTxInfo = function (parsed) {
 
         parsed.encryptedKey = parsed.txData
         parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
-        if (!parsed.sharedKey) return
+        if (!parsed.sharedKey) return Q.reject('failed to get shared key')
 
         try {
           parsed.key = utils.decrypt(parsed.txData, parsed.sharedKey).toString('hex')
