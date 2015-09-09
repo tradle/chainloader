@@ -1,21 +1,21 @@
 
 var assert = require('assert')
-var Transform = require('readable-stream').Transform
+// var Transform = require('readable-stream').Transform
 var Q = require('q')
 var typeforce = require('typeforce')
 var utils = require('tradle-utils')
 var debug = require('debug')('chainloader')
-var inherits = require('util').inherits
+// var inherits = require('util').inherits
 var extend = require('extend')
 var txd = require('tradle-tx-data')
 var TxInfo = txd.TxInfo
 var TxData = txd.TxData
 var Permission = require('tradle-permission')
-var pluck = require('./pluck')
-var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
+// var pluck = require('./pluck')
+// var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
 
 module.exports = Loader
-inherits(Loader, Transform)
+// inherits(Loader, Transform)
 
 /**
  * Load data from the chain (blockchain + keeper)
@@ -26,7 +26,7 @@ inherits(Loader, Transform)
  * @param {Object} options
  */
 function Loader (options) {
-  var self = this
+  // var self = this
 
   typeforce({
     keeper: 'Object',
@@ -39,129 +39,103 @@ function Loader (options) {
     getMany: 'Function'
   }, options.keeper)
 
-  Transform.call(this, {
-    objectMode: true,
-    highWaterMark: 16
-  })
+  // Transform.call(this, {
+  //   objectMode: true,
+  //   highWaterMark: 16
+  // })
 
   utils.bindPrototypeFunctions(this)
 
   extend(this, options)
   if (options.lookup) this.lookupWith(options.lookup)
 
-  FILE_EVENTS.forEach(function (event) {
-    self.on(event, function (data) {
-      // self.saveIfNew(data)
-      self.emit('file', data)
-    })
-  })
+  // FILE_EVENTS.forEach(function (event) {
+  //   self.on(event, function (data) {
+  //     // self.saveIfNew(data)
+  //     self.emit('file', data)
+  //   })
+  // })
 }
 
-Loader.prototype._transform = function (tx, encoding, done) {
-  var self = this
-  this.load(tx)
-    .catch(function (err) {
-      self.emit('error', err)
-      done()
-    })
-    .done(function (files) {
-      if (files) {
-        files.forEach(self.push, self)
-      }
+// Loader.prototype._transform = function (tx, encoding, done) {
+//   var self = this
+//   this._loadOne(tx)
+//     .catch(function (err) {
+//       self.emit('error', err)
+//       done()
+//     })
+//     .done(function (files) {
+//       if (files) {
+//         files.forEach(self.push, self)
+//       }
 
-      done()
-    })
+//       done()
+//     })
+// }
+
+Loader.prototype.load = function (txs) {
+  return Array.isArray(txs) ?
+    this.loadMany(txs) :
+    this.loadOne(txs)
 }
 
 /**
- *  Optimized data loading with minimum calls to keeper
- *  @return {Q.Promise} for files related to the passed in transactions/ids
- **/
-Loader.prototype.load = function (txs) {
+ * Returns an aggregated promise (Q.allSettled)
+ * @param  {[type]} txs [description]
+ * @return {[type]}     [description]
+ */
+Loader.prototype.loadMany = function (txs) {
+  return Q.allSettled(txs.map(this.loadOne))
+}
+
+Loader.prototype.loadOne = function (tx) {
   var self = this
-  txs = [].concat(txs)
-
-  var results = []
-  var shared = []
-  var parsedTxs
-  return this._parseTxs(txs)
+  var parsed
+  return this._parseTx(tx)
     .then(function (_parsed) {
-      parsedTxs = _parsed
-      if (!parsedTxs.length) return
-
-      parsedTxs.forEach(function (p, i) {
-        p._pIdx = i // for sorting at the end
-      })
-
-      return self.fetchFiles(pluck(parsedTxs, 'key'))
+      parsed = _parsed
+      return self.fetch(parsed.key)
     })
-    .then(function (fetched) {
-      if (!fetched || !fetched.length) return
-
-      fetched.forEach(function (data, i) {
-        if (!data) return
-
-        var parsed = parsedTxs[i]
-        if (parsed.txType === TxData.types.public) {
-          parsed.data = data
-          self.emit('file:public', parsed)
-          return results.push(parsed)
-        }
-
-        if (!parsed.sharedKey) return
-
-        parsed.encryptedPermission = data
-        try {
-          parsed.permission = Permission.recover(data, parsed.sharedKey)
-          parsed.key = parsed.permission.fileKeyString()
-          shared.push(parsed)
-          self.emit('file:permission', parsed)
-        } catch (err) {
-          debug('Failed to recover permission file contents from raw data', err)
-          return
-        }
-      })
-
-      if (shared.length) {
-        return self.fetchFiles(pluck(shared, 'key'))
-      }
-    })
-    .then(function (sharedFiles) {
-      if (sharedFiles && sharedFiles.length) {
-        sharedFiles.forEach(function (file, idx) {
-          if (!file) return
-
-          var parsed = extend({}, shared[idx])
-          parsed.key = parsed.permission.fileKeyString()
-          parsed.encryptedData = file
-
-          var decryptionKey = parsed.permission.decryptionKeyBuf()
-          if (decryptionKey) {
-            try {
-              file = utils.decrypt(file, decryptionKey)
-            } catch (err) {
-              debug('Failed to decrypt ciphertext: ' + file)
-              return
-            }
-          }
-
-          parsed.data = file
-          self.emit('file:shared', parsed)
-          results.push(parsed)
-        })
+    .then(function (data) {
+      if (parsed.txType === TxData.types.public) {
+        parsed.data = data
+        // self.emit('file:public', parsed)
+        return parsed
       }
 
-      // sort to match order of originally passed in txs
-      results.sort(function (a, b) {
-        return a._pIdx - b._pIdx
-      })
+      parsed.encryptedPermission = data
+      try {
+        parsed.permission = Permission.recover(data, parsed.sharedKey)
+        parsed.key = parsed.permission.fileKeyString()
+        // self.emit('file:permission', parsed)
+      } catch (err) {
+        debug('Failed to recover permission file contents from raw data', err)
+        throw new Error(err.message)
+      }
 
-      results.forEach(function (p) {
-        delete p._pIdx
-      })
-
-      return results
+      return self.fetch(parsed.key)
+        .then(processSharedFile)
     })
+
+  function processSharedFile (file) {
+    parsed.key = parsed.permission.fileKeyString()
+    parsed.encryptedData = file
+
+    var decryptionKey = parsed.permission.decryptionKeyBuf()
+    if (decryptionKey) {
+      try {
+        file = utils.decrypt(file, decryptionKey)
+      } catch (err) {
+        var msg = 'Failed to decrypt ciphertext'
+        debug(msg + ': ' + file)
+        throw new Error(msg)
+      }
+    }
+
+    parsed.data = file
+    // self.emit('file:shared', parsed)
+    return parsed
+  }
 }
 
 /*
@@ -252,11 +226,11 @@ Loader.prototype.lookupWith = function (fn) {
 //   }, this)
 // }
 
-Loader.prototype.fetchFiles = function (keys) {
-  return this.keeper.getMany(keys)
+Loader.prototype.fetch = function (key) {
+  return this.keeper.getOne(key)
     .catch(function (err) {
-      debug('Error fetching files', err)
-      throw new Error(err.message || 'Failed to retrieve file from keeper')
+      debug('Error fetching file', err)
+      throw new Error(err.message || 'Failed to retrieve file from keeper: ' + key)
     })
 }
 
@@ -276,11 +250,11 @@ Loader.prototype._processTxInfo = function (parsed) {
       if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
-        if (!matches) return Q.reject('unknown tx participants')
+        if (!matches) throw new Error('failed to derive tx participants')
 
         parsed.encryptedKey = parsed.txData
         parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
-        if (!parsed.sharedKey) return Q.reject('failed to get shared key')
+        if (!parsed.sharedKey) throw new Error('failed to derive shared key')
 
         try {
           parsed.key = utils.decrypt(parsed.txData, parsed.sharedKey).toString('hex')
@@ -288,7 +262,7 @@ Loader.prototype._processTxInfo = function (parsed) {
         } catch (err) {
           var msg = 'Failed to decrypt permission key: ' + parsed.key
           debug(msg)
-          return Q.reject(new Error(msg))
+          throw new Error(msg)
         }
       }
 
@@ -312,7 +286,7 @@ Loader.prototype._getSharedKey = function (from, to) {
 }
 
 Loader.prototype._parseTxs = function (txs) {
-  return getSuccessful(txs.map(this._parseTx, this))
+  return Q.allSettled(txs.map(this._parseTx))
 }
 
 Loader.prototype._parseTx = function (tx, cb) {
@@ -321,7 +295,7 @@ Loader.prototype._parseTx = function (tx, cb) {
     tx :
     TxInfo.parse(tx, this.networkName, this.prefix)
 
-  if (!parsed) return Q.reject()
+  if (!parsed) return Q.reject('no data embedded in tx')
 
   return this._processTxInfo(parsed)
 }
@@ -371,7 +345,7 @@ Loader.prototype._lookupParties = function (from, to) {
           }
         })
 
-      return matches
+      return Object.keys(matches).length ? matches : null
     })
 
   // if (self.identity) {
@@ -429,14 +403,14 @@ function getResult (obj, p) {
  * @param  {Array} tasks that return promises
  * @return {Promise}
  */
-function getSuccessful (tasks) {
-  return Q.allSettled(tasks)
-    .then(function (results) {
-      return results.filter(function (p) {
-          return p.state === 'fulfilled'
-        })
-        .map(function (result) {
-          return result.value
-        })
-    })
-}
+// function getSuccessful (tasks) {
+//   return Q.allSettled(tasks)
+//     .then(function (results) {
+//       return results.filter(function (p) {
+//           return p.state === 'fulfilled'
+//         })
+//         .map(function (result) {
+//           return result.value
+//         })
+//     })
+// }

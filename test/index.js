@@ -5,7 +5,7 @@ var bitcoin = require('bitcoinjs-lib')
 var Loader = require('../')
 var fakeKeeper = require('tradle-test-helpers').fakeKeeper
 // var Wallet = require('simple-wallet')
-var pluck = require('../pluck')
+// var pluck = require('../pluck')
 var app = require('./fixtures/app')
 var share = require('./fixtures/share')
 
@@ -16,7 +16,7 @@ test('load app models from list of model-creation tx ids', function (t) {
   var api = new Blockchain(network)
   var models = app.models.bodies
   var txIds = app.models.txIds
-  var loaded = []
+  // var loaded = []
   Q.all([
       Q.ninvoke(api.transactions, 'get', txIds),
       fakeKeeper.forData(models)
@@ -32,16 +32,19 @@ test('load app models from list of model-creation tx ids', function (t) {
         keeper: keeper
       })
 
-      ;['file:public', 'file:shared'].forEach(function (event) {
-        loader.on(event, function (file) {
-          loaded.push(file)
-        })
-      })
+      // ;['file:public', 'file:shared'].forEach(function (event) {
+      //   loader.on(event, function (file) {
+      //     loaded.push(file)
+      //   })
+      // })
 
       return loader.load(txs)
     })
-    .then(function () {
-      var files = pluck(loaded, 'data')
+    .then(function (results) {
+      var files = results.map(function (r) {
+        return r.value.data
+      })
+
       t.deepEqual(files, models)
     })
     .done()
@@ -99,8 +102,8 @@ test('test shared files', function (t) {
   })
 
   loader.load(txs)
-    .then(function (files) {
-      t.equal(files[0].key, share.key)
+    .then(function (results) {
+      t.equal(results[0].value.key, share.key)
     })
     .done(function () {
       t.end()
