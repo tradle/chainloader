@@ -237,7 +237,7 @@ Loader.prototype.fetch = function (key) {
 Loader.prototype._processTxInfo = function (parsed) {
   var self = this
   if (!TxInfo.validate(parsed)) {
-    return Q.reject('invalid parsed tx')
+    return Q.reject(new Error('invalid parsed tx'))
   }
 
   return this._lookupParties(parsed.addressesFrom, parsed.addressesTo)
@@ -250,7 +250,9 @@ Loader.prototype._processTxInfo = function (parsed) {
       if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
-        if (!matches) throw new Error('failed to derive tx participants')
+        if (!(matches.from && matches.to)) {
+          throw new Error('failed to derive tx participants')
+        }
 
         parsed.encryptedKey = parsed.txData
         parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
@@ -295,7 +297,7 @@ Loader.prototype._parseTx = function (tx, cb) {
     tx :
     TxInfo.parse(tx, this.networkName, this.prefix)
 
-  if (!parsed) return Q.reject('no data embedded in tx')
+  if (!parsed) return Q.reject(new Error('no data embedded in tx'))
 
   return this._processTxInfo(parsed)
 }
