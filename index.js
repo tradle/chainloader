@@ -250,7 +250,7 @@ Loader.prototype._processTxInfo = function (parsed) {
       if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
-        if (!(matches.from && matches.to)) {
+        if (!(matches && matches.from && matches.to)) {
           throw new Error('failed to derive tx participants')
         }
 
