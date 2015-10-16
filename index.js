@@ -110,11 +110,14 @@ Loader.prototype.loadOne = function (tx) {
         // self.emit('file:permission', parsed)
       } catch (err) {
         debug('Failed to recover permission file contents from raw data', err)
-        throw new Error(err.message)
+        throw err
       }
 
       return self.fetch(parsed.key)
         .then(processSharedFile)
+    })
+    .catch(function (err) {
+      throw toRichError(err, parsed)
     })
 
   function processSharedFile (file) {
@@ -297,9 +300,14 @@ Loader.prototype._parseTx = function (tx, cb) {
     tx :
     TxInfo.parse(tx, this.networkName, this.prefix)
 
-  if (!parsed) return Q.reject(new Error('no data embedded in tx'))
+  if (!parsed) {
+    return Q.reject(new Error('no data embedded in tx'))
+  }
 
   return this._processTxInfo(parsed)
+    .catch(function (err) {
+      throw toRichError(err, parsed)
+    })
 }
 
 /**
@@ -398,6 +406,12 @@ function getResult (obj, p) {
   var val = obj[p]
   if (typeof val === 'function') return obj[p]()
   else return val
+}
+
+function toRichError (err, parsed) {
+  if (!err.progress) err.progress = parsed
+
+  return err
 }
 
 /**
