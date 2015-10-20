@@ -11,10 +11,12 @@ var txd = require('tradle-tx-data')
 var TxInfo = txd.TxInfo
 var TxData = txd.TxData
 var Permission = require('tradle-permission')
+var Errors = require('./errors')
 // var pluck = require('./pluck')
 // var FILE_EVENTS = ['file:shared', 'file:public', 'file:permission']
 
 module.exports = Loader
+Loader.Errors = Errors
 // inherits(Loader, Transform)
 
 /**
@@ -110,14 +112,16 @@ Loader.prototype.loadOne = function (tx) {
         // self.emit('file:permission', parsed)
       } catch (err) {
         debug('Failed to recover permission file contents from raw data', err)
-        throw err
+        throw new Errors.InvalidPermission(err, {
+          key: parsed.key
+        })
       }
 
       return self.fetch(parsed.key)
         .then(processSharedFile)
     })
     .catch(function (err) {
-      throw toRichError(err, parsed)
+      throw errorWithProgress(err, parsed)
     })
 
   function processSharedFile (file) {
@@ -129,9 +133,10 @@ Loader.prototype.loadOne = function (tx) {
       try {
         file = utils.decrypt(file, decryptionKey)
       } catch (err) {
-        var msg = 'Failed to decrypt ciphertext'
-        debug(msg + ': ' + file)
-        throw new Error(msg)
+        debug('Failed to decrypt ciphertext: ' + file)
+        throw new Errors.Decrypt({
+          key: parsed.key
+        })
       }
     }
 
@@ -233,14 +238,18 @@ Loader.prototype.fetch = function (key) {
   return this.keeper.getOne(key)
     .catch(function (err) {
       debug('Error fetching file', err)
-      throw new Error(err.message || 'Failed to retrieve file from keeper: ' + key)
+      throw new Errors.FileNotFound(err, {
+        key: key
+      })
     })
 }
 
 Loader.prototype._processTxInfo = function (parsed) {
   var self = this
   if (!TxInfo.validate(parsed)) {
-    return Q.reject(new Error('invalid parsed tx'))
+    return Q.reject(new Errors.NotEnoughInfo({
+      txId: parsed.txId
+    }))
   }
 
   return this._lookupParties(parsed.addressesFrom, parsed.addressesTo)
@@ -254,20 +263,28 @@ Loader.prototype._processTxInfo = function (parsed) {
         parsed.key = parsed.txData.toString('hex')
       } else {
         if (!(matches && matches.from && matches.to)) {
-          throw new Error('failed to derive tx participants')
+          throw new Errors.ParticipantsNotFound({
+            message: 'failed to derive tx participants',
+            txId: parsed.txId
+          })
         }
 
         parsed.encryptedKey = parsed.txData
         parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
-        if (!parsed.sharedKey) throw new Error('failed to derive shared key')
+        if (!parsed.sharedKey) {
+          throw new Errors.ECDH({
+            message: 'failed to derive shared key',
+            txId: parsed.txId
+          })
+        }
 
         try {
           parsed.key = utils.decrypt(parsed.txData, parsed.sharedKey).toString('hex')
           parsed.permissionKey = parsed.key
         } catch (err) {
-          var msg = 'Failed to decrypt permission key: ' + parsed.key
-          debug(msg)
-          throw new Error(msg)
+          throw new Errors.Decrypt({
+            key: parsed.key
+          })
         }
       }
 
@@ -301,12 +318,14 @@ Loader.prototype._parseTx = function (tx, cb) {
     TxInfo.parse(tx, this.networkName, this.prefix)
 
   if (!parsed) {
-    return Q.reject(new Error('no data embedded in tx'))
+    return Q.reject(new Errors.NoData({
+      txId: parsed.txId
+    }))
   }
 
   return this._processTxInfo(parsed)
     .catch(function (err) {
-      throw toRichError(err, parsed)
+      throw errorWithProgress(err, parsed)
     })
 }
 
@@ -408,7 +427,7 @@ function getResult (obj, p) {
   else return val
 }
 
-function toRichError (err, parsed) {
+function errorWithProgress (err, parsed) {
   if (!err.progress) err.progress = parsed
 
   return err

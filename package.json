@@ -29,6 +29,7 @@
   "dependencies": {
     "bitcoinjs-lib": "^1.4.0",
     "debug": "^2.2.0",
+    "error": "^7.0.2",
     "extend": "^2.0.1",
     "q": "^1.4.1",
     "tradle-permission": "tradle/permission",
