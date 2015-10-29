@@ -345,10 +345,18 @@ Loader.prototype._lookupParties = function (from, to) {
   if (!this.lookup) return Q.resolve(matches)
 
   var allAddrs = from.concat(to)
+
+  // cache to prevent running 2 lookups for 1 address
+  var promiseByAddr = {}
   var lookups = allAddrs.map(function (f) {
     if (!f) return Q.reject()
-    var promise = self.lookup(f, true) // private
-    assert(Q.isPromiseAlike(promise), '"lookup" function should return a promise')
+
+    var promise = promiseByAddr[f]
+    if (!promise) {
+      promise = promiseByAddr[f] = self.lookup(f, true) // private
+      assert(Q.isPromiseAlike(promise), '"lookup" function should return a promise')
+    }
+
     return promise
   })
 
