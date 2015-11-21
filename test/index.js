@@ -1,9 +1,9 @@
 var Q = require('q')
-var Blockchain = require('cb-blockr')
+var Blockchain = require('@tradle/cb-blockr')
 var test = require('tape')
-var bitcoin = require('bitcoinjs-lib')
+var bitcoin = require('@tradle/bitcoinjs-lib')
 var Loader = require('../')
-var fakeKeeper = require('tradle-test-helpers').fakeKeeper
+var fakeKeeper = require('@tradle/test-helpers').fakeKeeper
 // var Wallet = require('simple-wallet')
 // var pluck = require('../pluck')
 var app = require('./fixtures/app')

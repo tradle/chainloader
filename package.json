@@ -1,5 +1,5 @@
 {
-  "name": "chainloader",
+  "name": "@tradle/chainloader",
   "version": "1.1.2",
   "description": "parse blockchain transactions for embedded data keys, fetch the data bodies from a Tradle keeper",
   "main": "index.js",
@@ -27,22 +27,22 @@
   },
   "homepage": "https://github.com/tradle/chainloader#readme",
   "dependencies": {
-    "bitcoinjs-lib": "^1.4.0",
+    "@tradle/bitcoinjs-lib": "^1.5.7",
+    "@tradle/permission": "^0.0.1",
+    "@tradle/tx-data": "^0.0.1",
+    "@tradle/utils": "^0.2.4",
     "debug": "^2.2.0",
     "error": "^7.0.2",
     "q": "^1.4.1",
-    "tradle-permission": "tradle/permission",
-    "tradle-tx-data": "tradle/tx-data",
-    "tradle-utils": "^0.2.2",
     "typeforce": "^1.0.0",
     "xtend": "^4.0.0"
   },
   "devDependencies": {
-    "cb-blockr": "^3.1.1",
+    "@tradle/simple-wallet": "0.0.1",
+    "@tradle/test-helpers": "0.0.2",
+    "@tradle/cb-blockr": "^3.1.1",
     "pre-commit": "^1.0.7",
-    "simple-wallet": "tradle/simple-wallet",
     "standard": "^3.9.0",
-    "tape": "^4.2.0",
-    "tradle-test-helpers": "tradle/test-helpers"
+    "tape": "^4.2.0"
   }
 }
