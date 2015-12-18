@@ -51,35 +51,12 @@ function Loader (options) {
 
   extend(this, options)
   if (options.lookup) this.lookupWith(options.lookup)
-
-  // FILE_EVENTS.forEach(function (event) {
-  //   self.on(event, function (data) {
-  //     // self.saveIfNew(data)
-  //     self.emit('file', data)
-  //   })
-  // })
 }
 
-// Loader.prototype._transform = function (tx, encoding, done) {
-//   var self = this
-//   this._loadOne(tx)
-//     .catch(function (err) {
-//       self.emit('error', err)
-//       done()
-//     })
-//     .done(function (files) {
-//       if (files) {
-//         files.forEach(self.push, self)
-//       }
-
-//       done()
-//     })
-// }
-
 Loader.prototype.load = function (txs) {
-  return Array.isArray(txs) ?
-    this.loadMany(txs) :
-    this.loadOne(txs)
+  return Array.isArray(txs)
+    ? this.loadMany(txs)
+    : this.loadOne(txs)
 }
 
 /**
@@ -107,43 +84,50 @@ Loader.prototype.loadOne = function (tx) {
       }
 
       parsed.encryptedPermission = data
-      try {
-        parsed.permission = Permission.recover(data, parsed.sharedKey)
-        parsed.key = parsed.permission.fileKeyString()
-        // self.emit('file:permission', parsed)
-      } catch (err) {
-        debug('Failed to recover permission file contents from raw data', err)
-        throw new Errors.InvalidPermission(err, {
-          key: parsed.key
-        })
-      }
-
-      return self.fetch(parsed.key)
-        .then(processSharedFile)
+      return processSharedFile(data, parsed.sharedKey)
     })
     .catch(function (err) {
       throw errorWithProgress(err, parsed)
     })
 
-  function processSharedFile (file) {
-    parsed.key = parsed.permission.fileKeyString()
-    parsed.encryptedData = file
-
-    var decryptionKey = parsed.permission.decryptionKeyBuf()
-    if (decryptionKey) {
-      try {
-        file = utils.decrypt(file, decryptionKey)
-      } catch (err) {
-        debug('Failed to decrypt ciphertext: ' + file)
-        throw new Errors.Decrypt({
+  function processSharedFile (file, sharedKey) {
+    return Q.ninvoke(Permission, 'recover', file, sharedKey)
+      .catch(function (err) {
+        debug('Failed to recover permission file contents from raw data', err)
+        throw new Errors.InvalidPermission(err, {
           key: parsed.key
         })
-      }
-    }
+      })
+      .then(function (permission) {
+        parsed.permission = permission
+        parsed.key = parsed.permission.fileKeyString()
+        return self.fetch(parsed.key)
+      })
+      .then(function (file) {
+        parsed.encryptedData = file
 
-    parsed.data = file
-    // self.emit('file:shared', parsed)
-    return parsed
+        var decryptionKey = parsed.permission.decryptionKeyBuf()
+        if (!decryptionKey) return file
+
+        return decrypt(file, decryptionKey)
+      })
+  }
+
+  function decrypt (file, decryptionKey) {
+    return Q.ninvoke(utils, 'decryptAsync', {
+      data: file,
+      key: decryptionKey
+    })
+    .then(function (file) {
+      parsed.data = file
+      return parsed
+    })
+    .catch(function (err) {
+      debug('Failed to decrypt ciphertext: ' + file, err)
+      throw new Errors.Decrypt({
+        key: parsed.key
+      })
+    })
   }
 }
 
@@ -160,80 +144,6 @@ Loader.prototype.lookupWith = function (fn) {
   this.lookup = fn
   return this
 }
-
-// /**
-//  * Attempt to deduce the permission key and ECDH shared key
-//  *   from the parties involved in the bitcoin transaction
-//  * @param  {Transaction} tx
-//  * @param  {TransactionData} txData
-//  * @return {Object}   permission file "key" and ECDH "sharedKey" to decrypt it
-//  */
-// Loader.prototype.deduceECDHKeys = function (tx, txData) {
-//   if (!(this.wallet && txData)) return
-
-//   var wallet = this.wallet
-//   var myAddress
-//   var myPrivKey
-//   var theirPubKey
-//   var toMe = this.getSentToMe(tx)
-//   var fromMe = this.getSentFromMe(tx)
-//   if (!toMe.length && !fromMe.length) {
-//     debug("Cannot parse permission data from transaction as it's neither to me nor from me")
-//     return
-//   }
-
-//   if (fromMe.length) {
-//     tx.ins.some(function (input) {
-//       var addr = utils.getAddressFromInput(input, this.networkName)
-//       myPrivKey = wallet.addressString === addr && wallet.priv
-//       return myPrivKey
-//     }, this)
-
-//     toMe.some(function (out) {
-//       var addr = utils.getAddressFromOutput(out, this.networkName)
-//       theirPubKey = addr === wallet.addressString && wallet.pub
-//       return theirPubKey
-//     }, this)
-//   } else {
-//     myAddress = utils.getAddressFromOutput(toMe[0], this.networkName)
-//     myPrivKey = wallet.addressString === myAddress && wallet.priv
-//     theirPubKey = bitcoin.ECPubKey.fromBuffer(tx.ins[0].script.chunks[1])
-//   }
-
-//   if (myPrivKey && theirPubKey) {
-//     if (myPrivKey.pub.toHex() !== theirPubKey.toHex()) {
-//       return {
-//         priv: myPrivKey,
-//         pub: theirPubKey
-//       }
-//     }
-//   }
-
-// }
-
-/**
- *  @return {Array} outputs in tx that the underlying wallet can spend
- */
-// Loader.prototype.getSentToMe = function (tx) {
-//   if (!this.wallet) return []
-
-//   return tx.outs.filter(function (out) {
-//     var address = utils.getAddressFromOutput(out, this.networkName)
-//     return this.wallet.addressString === address
-//   }, this)
-// }
-
-/**
- *  @return {Array} inputs in tx that are signed by the underlying wallet
- */
-// Loader.prototype.getSentFromMe = function (tx) {
-//   if (!this.wallet) return []
-
-//   return tx.ins.filter(function (input) {
-//     var address = utils.getAddressFromInput(input, this.networkName)
-//     return this.wallet.addressString === address
-//   }, this)
-// }
 
 Loader.prototype.fetch = function (key) {
   return this.keeper.getOne(key)
@@ -263,34 +173,45 @@ Loader.prototype._processTxInfo = function (parsed) {
       if (parsed.txType === TxData.types.public) {
         parsed.key = parsed.txData.toString('hex')
       } else {
-        if (!(matches && matches.from && matches.to)) {
-          throw new Errors.ParticipantsNotFound({
-            message: 'failed to derive tx participants',
-            txId: parsed.txId
-          })
-        }
-
-        parsed.encryptedKey = parsed.txData
-        parsed.sharedKey = self._getSharedKey(matches.from, matches.to)
-        if (!parsed.sharedKey) {
-          throw new Errors.ECDH({
-            message: 'failed to derive shared key',
-            txId: parsed.txId
-          })
-        }
-
-        try {
-          parsed.key = utils.decrypt(parsed.txData, parsed.sharedKey).toString('hex')
-          parsed.permissionKey = parsed.key
-        } catch (err) {
-          throw new Errors.Decrypt({
-            key: parsed.key
-          })
-        }
+        return processPermission()
       }
-
+    })
+    .then(function () {
       return parsed
     })
+
+  function processPermission () {
+    if (!(parsed.from && parsed.to)) {
+      throw new Errors.ParticipantsNotFound({
+        message: 'failed to derive tx participants',
+        txId: parsed.txId
+      })
+    }
+
+    parsed.encryptedKey = parsed.txData
+    parsed.sharedKey = self._getSharedKey(parsed.from, parsed.to)
+    if (!parsed.sharedKey) {
+      throw new Errors.ECDH({
+        message: 'failed to derive shared key',
+        txId: parsed.txId
+      })
+    }
+
+    return Q.ninvoke(utils, 'decryptAsync', {
+      data: parsed.txData,
+      key: parsed.sharedKey
+    })
+    .catch(function (err) {
+      debug('failed to decrypt txData', err)
+      throw new Errors.Decrypt({
+        key: parsed.key
+      })
+    })
+    .then(function (key) {
+      parsed.key = key.toString('hex')
+      parsed.permissionKey = parsed.key
+    })
+  }
 }
 
 Loader.prototype._getSharedKey = function (from, to) {
@@ -314,9 +235,9 @@ Loader.prototype._parseTxs = function (txs) {
 
 Loader.prototype._parseTx = function (tx, cb) {
   // may already be parsed
-  var parsed = TxInfo.validate(tx) ?
-    tx :
-    TxInfo.parse(tx, this.networkName, this.prefix)
+  var parsed = TxInfo.validate(tx)
+    ? tx
+    : TxInfo.parse(tx, this.networkName, this.prefix)
 
   if (!parsed) {
     return Q.reject(new Errors.NoData({
@@ -385,49 +306,6 @@ Loader.prototype._lookupParties = function (from, to) {
 
       return Object.keys(matches).length ? matches : null
     })
-
-  // if (self.identity) {
-  //   find(addrs.from, function (addr) {
-  //     var key = self.identity.keys({ fingerprint: addr })[0]
-  //     from = key && {
-  //       key: key,
-  //       identity: self.identity
-  //     }
-
-  //     return from
-  //   })
-
-  //   if (from.identity !== self.identity) {
-  //     find(addrs.to, function (addr) {
-  //       var key = self.identity.keys({ fingerprint: addr })[0]
-  //       to = key && {
-  //         key: key,
-  //         identity: self.identity
-  //       }
-
-  //       return to
-  //     })
-  //   }
-  // }
-
-  // if (self.addressBook) {
-  //   if (!from) {
-  //     find(addrs.from, function (addr) {
-  //       from = self.addressBook.byFingerprint(addr)
-  //       return from
-  //     })
-  //   }
-
-  //   if (!to) {
-  //     find(addrs.to, function (addr) {
-  //       to = self.addressBook.byFingerprint(addr)
-  //       return to
-  //     })
-  //   }
-  // }
-
-  // parsed.from = from
-  // parsed.to = to
 }
 
 function getResult (obj, p) {
@@ -441,20 +319,3 @@ function errorWithProgress (err, parsed) {
 
   return err
 }
-
-/**
- * gets results of fulfilled promises
- * @param  {Array} tasks that return promises
- * @return {Promise}
- */
-// function getSuccessful (tasks) {
-//   return Q.allSettled(tasks)
-//     .then(function (results) {
-//       return results.filter(function (p) {
-//           return p.state === 'fulfilled'
-//         })
-//         .map(function (result) {
-//           return result.value
-//         })
-//     })
-// }

@@ -18,36 +18,36 @@ test('load app models from list of model-creation tx ids', function (t) {
   var txIds = app.models.txIds
   // var loaded = []
   Q.all([
-      Q.ninvoke(api.transactions, 'get', txIds),
-      fakeKeeper.forData(models)
-    ])
-    .spread(function (txs, keeper) {
-      txs = txs.map(function (tx) {
-        return bitcoin.Transaction.fromHex(tx.txHex)
-      })
-
-      var loader = new Loader({
-        prefix: 'tradle',
-        networkName: network,
-        keeper: keeper
-      })
-
-      // ;['file:public', 'file:shared'].forEach(function (event) {
-      //   loader.on(event, function (file) {
-      //     loaded.push(file)
-      //   })
-      // })
-
-      return loader.load(txs)
+    Q.ninvoke(api.transactions, 'get', txIds),
+    fakeKeeper.forData(models)
+  ])
+  .spread(function (txs, keeper) {
+    txs = txs.map(function (tx) {
+      return bitcoin.Transaction.fromHex(tx.txHex)
     })
-    .then(function (results) {
-      var files = results.map(function (r) {
-        return r.value.data
-      })
 
-      t.deepEqual(files, models)
+    var loader = new Loader({
+      prefix: 'tradle',
+      networkName: network,
+      keeper: keeper
     })
-    .done()
+
+    // ;['file:public', 'file:shared'].forEach(function (event) {
+    //   loader.on(event, function (file) {
+    //     loaded.push(file)
+    //   })
+    // })
+
+    return loader.load(txs)
+  })
+  .then(function (results) {
+    var files = results.map(function (r) {
+      return r.value.data
+    })
+
+    t.deepEqual(files, models)
+  })
+  .done()
 })
 
 test('test shared files', function (t) {

@@ -28,9 +28,9 @@
   "homepage": "https://github.com/tradle/chainloader#readme",
   "dependencies": {
     "@tradle/bitcoinjs-lib": "^1.5.7",
-    "@tradle/permission": "^0.0.1",
+    "@tradle/permission": "^1.0.1",
     "@tradle/tx-data": "^0.0.1",
-    "@tradle/utils": "^0.2.4",
+    "@tradle/utils": "^0.3.3",
     "debug": "^2.2.0",
     "error": "^7.0.2",
     "q": "^1.4.1",
