@@ -163,6 +163,14 @@ Loader.prototype._processTxInfo = function (parsed) {
     }))
   }
 
+  if (isOldFormatTxData(parsed)) {
+    return Q.reject(new Errors.Decrypt({
+      key: parsed.sharedKey
+    }))
+
+    // old format used insecure utils.decrypt
+  }
+
   return this._lookupParties(parsed.addressesFrom, parsed.addressesTo)
     .then(function (matches) {
       if (matches) {
@@ -318,4 +326,9 @@ function errorWithProgress (err, parsed) {
   if (!err.progress) err.progress = parsed
 
   return err
+}
+
+function isOldFormatTxData (parsed) {
+  return parsed.txType === TxData.types.permission &&
+    parsed.txData.length === 20
 }

@@ -32,12 +32,6 @@ test('load app models from list of model-creation tx ids', function (t) {
       keeper: keeper
     })
 
-    // ;['file:public', 'file:shared'].forEach(function (event) {
-    //   loader.on(event, function (file) {
-    //     loaded.push(file)
-    //   })
-    // })
-
     return loader.load(txs)
   })
   .then(function (results) {
