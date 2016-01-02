@@ -245,7 +245,7 @@ Loader.prototype._parseTx = function (tx, cb) {
   // may already be parsed
   var parsed = TxInfo.validate(tx)
     ? tx
-    : TxInfo.parse(tx, this.networkName, this.prefix)
+    : TxInfo.parse(tx.tx || tx, this.networkName, this.prefix)
 
   if (!parsed) {
     return Q.reject(new Errors.NoData({
