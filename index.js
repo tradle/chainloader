@@ -74,7 +74,11 @@ Loader.prototype.loadOne = function (tx) {
   return this._parseTx(tx)
     .then(function (_parsed) {
       parsed = _parsed
-      return self.fetch(parsed.key)
+      var cached = parsed.txType === TxData.types.public
+        ? parsed.data
+        : parsed.encryptedData
+
+      return cached || self.fetch(parsed.key)
     })
     .then(function (data) {
       if (parsed.txType === TxData.types.public) {
@@ -91,17 +95,11 @@ Loader.prototype.loadOne = function (tx) {
     })
 
   function processSharedFile (file, sharedKey) {
-    return Q.ninvoke(Permission, 'recover', file, sharedKey)
-      .catch(function (err) {
-        debug('Failed to recover permission file contents from raw data', err)
-        throw new Errors.InvalidPermission(err, {
-          key: parsed.key
-        })
-      })
+    return loadPermission(file, sharedKey)
       .then(function (permission) {
         parsed.permission = permission
         parsed.key = parsed.permission.fileKeyString()
-        return self.fetch(parsed.key)
+        return parsed.encryptedData || self.fetch(parsed.key)
       })
       .then(function (file) {
         parsed.encryptedData = file
@@ -110,6 +108,18 @@ Loader.prototype.loadOne = function (tx) {
         if (!decryptionKey) return file
 
         return decrypt(file, decryptionKey)
+      })
+  }
+
+  function loadPermission (file, sharedKey) {
+    if (parsed.permission) return Q(parsed.permission)
+
+    return Q.ninvoke(Permission, 'recover', file, sharedKey)
+      .catch(function (err) {
+        debug('Failed to recover permission file contents from raw data', err)
+        throw new Errors.InvalidPermission(err, {
+          key: parsed.key
+        })
       })
   }
 
@@ -157,6 +167,8 @@ Loader.prototype.fetch = function (key) {
 
 Loader.prototype._processTxInfo = function (parsed) {
   var self = this
+  if (parsed.permission) return Q(parsed)
+
   if (!TxInfo.validate(parsed)) {
     return Q.reject(new Errors.NotEnoughInfo({
       txId: parsed.txId
