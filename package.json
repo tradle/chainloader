@@ -1,6 +1,6 @@
 {
   "name": "@tradle/chainloader",
-  "version": "2.0.4",
+  "version": "2.1.0",
   "description": "parse blockchain transactions for embedded data keys, fetch the data bodies from a Tradle keeper",
   "main": "index.js",
   "scripts": {
