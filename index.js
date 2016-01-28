@@ -169,18 +169,20 @@ Loader.prototype._processTxInfo = function (parsed) {
   var self = this
   if (parsed.permission) return Q(parsed)
 
-  if (!TxInfo.validate(parsed)) {
-    return Q.reject(new Errors.NotEnoughInfo({
-      txId: parsed.txId
-    }))
-  }
+  if (!parsed.encryptedPermission) {
+    if (!TxInfo.validate(parsed)) {
+      return Q.reject(new Errors.NotEnoughInfo({
+        txId: parsed.txId
+      }))
+    }
 
-  if (isOldFormatTxData(parsed)) {
-    return Q.reject(new Errors.Decrypt({
-      key: parsed.sharedKey
-    }))
+    if (isOldFormatTxData(parsed)) {
+      return Q.reject(new Errors.Decrypt({
+        key: parsed.sharedKey
+      }))
 
-    // old format used insecure utils.decrypt
+      // old format used insecure utils.decrypt
+    }
   }
 
   return this._lookupParties(parsed.addressesFrom, parsed.addressesTo)
@@ -215,6 +217,11 @@ Loader.prototype._processTxInfo = function (parsed) {
         message: 'failed to derive shared key',
         txId: parsed.txId
       })
+    }
+
+    if (parsed.encryptedPermission) {
+      debug('have encryptedPermission, skipping decryption of txData')
+      return
     }
 
     return Q.ninvoke(utils, 'decryptAsync', {
