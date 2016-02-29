@@ -169,7 +169,16 @@ Loader.prototype._processTxInfo = function (parsed) {
   var self = this
   if (parsed.permission) return Q(parsed)
 
-  if (!parsed.encryptedPermission) {
+  var isPublic = parsed.txType === TxData.types.public
+  if (isPublic) {
+    if (!(parsed.data || parsed.txData)) {
+      return Q.reject(new Errors.NotEnoughInfo({
+        txId: parsed.txId
+      }))
+    }
+  }
+
+  if (!isPublic && !parsed.encryptedPermission) {
     if (!TxInfo.validate(parsed)) {
       return Q.reject(new Errors.NotEnoughInfo({
         txId: parsed.txId
@@ -192,8 +201,16 @@ Loader.prototype._processTxInfo = function (parsed) {
         parsed.to = matches.to
       }
 
-      if (parsed.txType === TxData.types.public) {
-        parsed.key = parsed.txData.toString('hex')
+      if (isPublic) {
+        var getTxData = parsed.txData
+          ? Q(parsed.txData)
+          : Q.ninvoke(utils, 'getStorageKeyFor', parsed.data)
+
+        return getTxData
+          .then(function (txData) {
+            parsed.txData = txData
+            parsed.key = parsed.txData.toString('hex')
+          })
       } else {
         return processPermission()
       }
